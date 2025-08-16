@@ -12,17 +12,8 @@ from playwright.async_api import Response
 from . import config
 from . import database
 
-# --- LOGGING SETUP ---
-# Ensure the logs directory exists before setting up the handler
-os.makedirs(config.LOGS_DIR, exist_ok=True)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(os.path.join(config.LOGS_DIR, "scraper.log")),
-        logging.StreamHandler()
-    ]
-)
+# Basic logging will be configured in main.py
+# This allows the setup logic to control when and how logging is set up.
 
 # --- HELPER FUNCTIONS ---
 
@@ -88,7 +79,6 @@ async def process_response(response: Response):
                     logging.error(f"DOCX text extraction failed for {url}: {e}")
                     status = "docx_extraction_failed"
 
-            # Using ON CONFLICT...DO UPDATE to handle existing URLs gracefully
             await db_conn.execute(
                 """
                 INSERT INTO scraped_pages (url, source_site, content_type, status, text_content)
@@ -110,11 +100,6 @@ async def process_response(response: Response):
 
             filename = os.path.basename(urlparse(url).path) or f"{source_site.replace('.', '_')}_image.png"
             filepath = os.path.join(config.DOWNLOAD_DIR, filename)
-
-            # --- DEBUGGING: Print the absolute path ---
-            logging.info(f"Attempting to create download directory at: {os.path.abspath(config.DOWNLOAD_DIR)}")
-
-            os.makedirs(config.DOWNLOAD_DIR, exist_ok=True)
             with open(filepath, "wb") as f:
                 f.write(body)
 

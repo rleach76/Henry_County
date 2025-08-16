@@ -1,31 +1,46 @@
 import asyncio
 import logging
+import os
 from playwright.async_api import async_playwright
 
+from . import config
 from . import database
 from . import scrapers
 
 # --- Scraper Category Mapping ---
-# Maps the 'category' string from the database to the actual scraper function
-# Note: This is a simple router. A more advanced system might use a more
-#       pluggable architecture.
 SCRAPER_MAPPING = {
-    # Generic crawler is the default for most categories
     "government": scrapers.crawl_generic_website,
     "news_and_obituaries": scrapers.crawl_generic_website,
     "funeral_homes": scrapers.crawl_generic_website,
     "genealogy": scrapers.crawl_generic_website,
-    # Specialized scrapers are routed explicitly
     "chamber_of_commerce": scrapers.scrape_chamber_of_commerce,
     "ohiobiz": scrapers.scrape_ohiobiz,
-    "business_and_economic": scrapers.crawl_generic_website, # Default for this category
+    "business_and_economic": scrapers.crawl_generic_website,
 }
+
+def setup_directories_and_logging():
+    """Creates necessary directories and sets up logging."""
+    # Create data directories if they don't exist
+    os.makedirs(config.LOGS_DIR, exist_ok=True)
+    os.makedirs(config.DOWNLOAD_DIR, exist_ok=True)
+    # The storage directory is created by init_db if needed, but good to be explicit
+    os.makedirs(os.path.dirname(database.DSN), exist_ok=True) if "postgresql" not in database.DSN else None
+
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(os.path.join(config.LOGS_DIR, "scraper.log")),
+            logging.StreamHandler()
+        ]
+    )
 
 async def main():
     """
     Main orchestrator for the database-driven scraping process.
     """
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    setup_directories_and_logging()
     logging.info("--- Starting Database-Driven Scraper ---")
 
     db_conn = None
@@ -36,7 +51,6 @@ async def main():
 
         # Fetch scraping targets from the database
         db_conn = await database.get_db_connection()
-        # Fetch a batch of pending targets
         targets = await db_conn.fetch("SELECT id, url, category FROM scraping_targets WHERE status = 'pending' LIMIT 10")
 
         if not targets:
@@ -53,10 +67,8 @@ async def main():
                 logging.info(f"Processing target {target_id}: {url} (Category: {category})")
 
                 try:
-                    # Mark target as in_progress
                     await db_conn.execute("UPDATE scraping_targets SET status = 'in_progress', last_scraped_timestamp = NOW() WHERE id = $1", target_id)
 
-                    # --- Simple Scraper Routing Logic ---
                     scraper_func = None
                     if "henrycountychamber" in url:
                         scraper_func = scrapers.scrape_chamber_of_commerce
@@ -66,9 +78,7 @@ async def main():
                         scraper_func = SCRAPER_MAPPING.get(category, scrapers.crawl_generic_website)
 
                     if scraper_func:
-                        # Pass the browser and URL to the selected scraper
                         await scraper_func(browser, url)
-                        # Mark as completed
                         await db_conn.execute("UPDATE scraping_targets SET status = 'completed' WHERE id = $1", target_id)
                         logging.info(f"Successfully processed target {target_id}: {url}")
                     else:
@@ -77,7 +87,6 @@ async def main():
 
                 except Exception as e:
                     logging.error(f"Scraping failed for target {target_id}: {url}. Error: {e}")
-                    # Mark as failed
                     await db_conn.execute("UPDATE scraping_targets SET status = 'failed' WHERE id = $1", target_id)
 
             await browser.close()
@@ -91,6 +100,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    # Note: Before running this, you should run `seed_db.py` once
-    # to populate the scraping_targets table in your PostgreSQL database.
     asyncio.run(main())
