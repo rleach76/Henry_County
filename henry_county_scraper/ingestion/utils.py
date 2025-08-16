@@ -13,7 +13,8 @@ from . import config
 from . import database
 
 # --- LOGGING SETUP ---
-# (Re-using existing logging setup from previous steps)
+# Ensure the logs directory exists before setting up the handler
+os.makedirs(config.LOGS_DIR, exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
