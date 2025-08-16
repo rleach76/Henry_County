@@ -113,6 +113,12 @@ async def crawl_generic_website(browser: Browser, start_url: str):
             soup = BeautifulSoup(html_content, 'html.parser')
             for a_tag in soup.find_all('a', href=True):
                 link = urljoin(url, a_tag['href']).split('#')[0]
+
+                # --- FIX for Anti-Forgery Loop ---
+                if "antiforgery" in link.lower():
+                    logging.warning(f"Skipping likely anti-forgery link: {link}")
+                    continue
+
                 if urlparse(link).netloc == source_domain and link not in visited_urls:
                     visited_urls.add(link)
                     queue.append(link)
