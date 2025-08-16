@@ -1,0 +1,10 @@
+playwright
+beautifulsoup4
+aiohttp
+python-magic
+pytesseract
+Pillow
+pdfminer.six
+docx2txt
+feedparser
+asyncpg
