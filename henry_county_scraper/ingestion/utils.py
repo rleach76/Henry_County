@@ -110,7 +110,11 @@ async def process_response(response: Response):
 
             filename = os.path.basename(urlparse(url).path) or f"{source_site.replace('.', '_')}_image.png"
             filepath = os.path.join(config.DOWNLOAD_DIR, filename)
-            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+            # --- DEBUGGING: Print the absolute path ---
+            logging.info(f"Attempting to create download directory at: {os.path.abspath(config.DOWNLOAD_DIR)}")
+
+            os.makedirs(config.DOWNLOAD_DIR, exist_ok=True)
             with open(filepath, "wb") as f:
                 f.write(body)
 
