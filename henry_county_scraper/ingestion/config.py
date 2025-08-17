@@ -82,6 +82,7 @@ MIME_TYPE_ALLOWLIST = [
     "application/xml", # Important for RSS feeds
     "application/rss+xml", # Important for RSS feeds
     "application/atom+xml", # Important for RSS feeds
+    "image/svg+xml", # SVGs are text-based XML
     "application/pdf",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document", # .docx

@@ -51,20 +51,26 @@ async def main():
 
         # Fetch scraping targets from the database
         db_conn = await database.get_db_connection()
-        targets = await db_conn.fetch("SELECT id, url, category FROM scraping_targets WHERE status = 'pending' LIMIT 10")
+        # New query: get all 'always' scrape targets PLUS any 'pending' once-off targets
+        targets = await db_conn.fetch("""
+            SELECT id, url, category, scrape_frequency, status
+            FROM scraping_targets
+            WHERE status = 'pending' OR scrape_frequency = 'always'
+            LIMIT 20
+        """)
 
         if not targets:
             logging.info("No pending targets found in the database. Exiting browser-based scraping.")
             return
 
-        logging.info(f"Found {len(targets)} pending targets to scrape.")
+        logging.info(f"Found {len(targets)} targets to scrape.")
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
 
             for target in targets:
-                target_id, url, category = target['id'], target['url'], target['category']
-                logging.info(f"Processing target {target_id}: {url} (Category: {category})")
+                target_id, url, category, freq = target['id'], target['url'], target['category'], target['scrape_frequency']
+                logging.info(f"Processing target {target_id}: {url} (Category: {category}, Frequency: {freq})")
 
                 try:
                     await db_conn.execute("UPDATE scraping_targets SET status = 'in_progress', last_scraped_timestamp = NOW() WHERE id = $1", target_id)
@@ -79,8 +85,11 @@ async def main():
 
                     if scraper_func:
                         await scraper_func(browser, url)
-                        await db_conn.execute("UPDATE scraping_targets SET status = 'completed' WHERE id = $1", target_id)
-                        logging.info(f"Successfully processed target {target_id}: {url}")
+
+                        # New status logic: only mark 'once' jobs as completed. 'always' jobs go back to pending.
+                        new_status = 'pending' if freq == 'always' else 'completed'
+                        await db_conn.execute("UPDATE scraping_targets SET status = $1 WHERE id = $2", new_status, target_id)
+                        logging.info(f"Successfully processed target {target_id}: {url}. New status: {new_status}")
                     else:
                         logging.warning(f"No scraper found for category '{category}'. Marking as failed.")
                         await db_conn.execute("UPDATE scraping_targets SET status = 'failed' WHERE id = $1", target_id)

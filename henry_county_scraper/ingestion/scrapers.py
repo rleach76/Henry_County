@@ -86,51 +86,76 @@ async def scrape_chamber_of_commerce(browser: Browser, start_url: str):
 
 async def crawl_generic_website(browser: Browser, start_url: str):
     """
-    Crawls a generic website by attaching a response listener and following internal links.
+    Crawls a generic website, extracting main content and avoiding boilerplate/UI elements.
     """
-    logging.info(f"Starting generic crawl for: {start_url}")
+    logging.info(f"Starting intelligent crawl for: {start_url}")
 
     source_domain = urlparse(start_url).netloc
     queue = [start_url]
     visited_urls = {start_url}
 
     page = await browser.new_page()
+    db_conn = await database.get_db_connection()
 
-    background_tasks = set()
-    def handle_response(response):
-        task = asyncio.create_task(utils.process_response(response))
-        background_tasks.add(task)
-        task.add_done_callback(background_tasks.discard)
-    page.on("response", handle_response)
+    try:
+        while queue:
+            url = queue.pop(0)
+            logging.info(f"Intelligently processing: {url}")
 
-    while queue:
-        url = queue.pop(0)
-        logging.info(f"Crawling: {url}")
-        try:
-            await page.goto(url, wait_until="domcontentloaded", timeout=60000)
-            html_content = await page.content()
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                html_content = await page.content()
+                soup = BeautifulSoup(html_content, 'html.parser')
 
-            soup = BeautifulSoup(html_content, 'html.parser')
-            for a_tag in soup.find_all('a', href=True):
-                link = urljoin(url, a_tag['href']).split('#')[0]
+                # --- 1. Text Extraction (Boilerplate Removal) ---
+                content_element = soup.find('main') or soup.find('article') or soup.body
+                main_text = content_element.get_text(separator='\n', strip=True)
 
-                # --- FIX for Anti-Forgery Loop ---
-                if "antiforgery" in link.lower():
-                    logging.warning(f"Skipping likely anti-forgery link: {link}")
-                    continue
+                await db_conn.execute(
+                    """
+                    INSERT INTO scraped_pages (url, source_site, content_type, status, text_content)
+                    VALUES ($1, $2, 'text/html', 'processed_text', $3)
+                    ON CONFLICT (url) DO UPDATE SET text_content = EXCLUDED.text_content, timestamp = NOW()
+                    """,
+                    url, source_domain, main_text
+                )
 
-                if urlparse(link).netloc == source_domain and link not in visited_urls:
-                    visited_urls.add(link)
-                    queue.append(link)
-        except Exception as e:
-            logging.error(f"Failed to crawl or parse {url}: {e}")
+                # --- 2. Image Extraction (Heuristics to avoid UI elements) ---
+                for img in content_element.find_all('img'):
+                    # Heuristic 1: Skip tiny images (likely icons/spacers)
+                    width = int(img.get('width', 100))
+                    height = int(img.get('height', 100))
+                    if width < 50 or height < 50:
+                        continue
 
-    logging.info(f"Crawling finished. Waiting for {len(background_tasks)} background tasks to complete.")
-    if background_tasks:
-        await asyncio.gather(*background_tasks)
+                    # Heuristic 2: Skip images that are links (likely buttons/ads)
+                    if img.find_parent('a'):
+                        continue
 
-    await page.close()
-    logging.info(f"Finished generic crawl for: {start_url}")
+                    img_url = img.get('src')
+                    if img_url:
+                        full_img_url = urljoin(url, img_url)
+                        # We would need another fetch here, perhaps with aiohttp, to get the image
+                        # For now, we will just log it as a potential content image
+                        logging.info(f"Found potential content image: {full_img_url}")
+
+                # --- 3. Link Discovery (from the whole page) ---
+                for a_tag in soup.find_all('a', href=True):
+                    link = urljoin(url, a_tag['href']).split('#')[0]
+                    if "antiforgery" in link.lower():
+                        logging.warning(f"Skipping likely anti-forgery link: {link}")
+                        continue
+                    if urlparse(link).netloc == source_domain and link not in visited_urls:
+                        visited_urls.add(link)
+                        queue.append(link)
+
+            except Exception as e:
+                logging.error(f"Failed to process {url}: {e}")
+    finally:
+        await page.close()
+        if db_conn:
+            await db_conn.close()
+        logging.info(f"Finished intelligent crawl for: {start_url}")
 
 async def scrape_ohiobiz(browser: Browser):
     # This scraper remains non-functional and is not a priority per user feedback.

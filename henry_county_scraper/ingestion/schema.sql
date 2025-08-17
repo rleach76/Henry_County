@@ -15,6 +15,7 @@ CREATE TABLE scraping_targets (
     url VARCHAR(2048) NOT NULL UNIQUE,
     category VARCHAR(255),
     status VARCHAR(50) DEFAULT 'pending', -- e.g., pending, in_progress, completed, failed
+    scrape_frequency VARCHAR(50) DEFAULT 'once', -- e.g., once, always
     last_scraped_timestamp TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

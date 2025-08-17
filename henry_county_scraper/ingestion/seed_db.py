@@ -35,9 +35,11 @@ async def seed():
         # Using executemany for efficient batch insertion
         await db_conn.executemany(
             """
-            INSERT INTO scraping_targets (url, category, status)
-            VALUES ($1, $2, 'pending')
-            ON CONFLICT (url) DO NOTHING
+            INSERT INTO scraping_targets (url, category, status, scrape_frequency)
+            VALUES ($1, $2, 'pending', 'always')
+            ON CONFLICT (url) DO UPDATE SET
+                category = EXCLUDED.category,
+                scrape_frequency = EXCLUDED.scrape_frequency
             """,
             urls_to_seed
         )
