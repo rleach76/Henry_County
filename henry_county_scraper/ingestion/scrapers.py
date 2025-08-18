@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import aiohttp
+import os
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 from playwright.async_api import Browser, Page
