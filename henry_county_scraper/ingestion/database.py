@@ -57,6 +57,23 @@ async def init_db():
         logging.critical(f"CRITICAL: Failed to initialize database. {e}")
         raise
 
-# Note: The individual scraper functions will need to be updated to use asyncpg's
-# query syntax (e.g., using $1, $2 for placeholders instead of ?).
-# This will be done when refactoring the scrapers themselves.
+async def reset_stale_targets():
+    """
+    Resets any targets that were 'in_progress' or 'failed' back to 'pending'.
+    This allows the scraper to retry them on the next run.
+    """
+    db_conn = None
+    try:
+        db_conn = await get_db_connection()
+        # We only reset 'once' frequency jobs that failed. 'always' jobs are retried anyway.
+        result = await db_conn.execute("""
+            UPDATE scraping_targets
+            SET status = 'pending'
+            WHERE status IN ('in_progress', 'failed') AND scrape_frequency = 'once'
+        """)
+        logging.info(f"Reset status for {result.split()[-1]} stale targets.")
+    except Exception as e:
+        logging.error(f"Failed to reset stale targets: {e}")
+    finally:
+        if db_conn:
+            await db_conn.close()
