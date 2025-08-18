@@ -86,8 +86,20 @@ async def crawl_generic_website(browser: Browser, start_url: str, county_name: s
                         continue
 
                     visited_urls.add(link)
+
+                    # More robust check for document/image links
+                    link_lower = link.lower()
                     link_ext = os.path.splitext(urlparse(link).path)[1].lower()
-                    if link_ext in DOCUMENT_EXTENSIONS or link_ext in IMAGE_EXTENSIONS:
+
+                    is_doc_link = (
+                        link_ext in DOCUMENT_EXTENSIONS or
+                        link_ext in IMAGE_EXTENSIONS or
+                        "/documentcenter/" in link_lower or
+                        "/viewfile/" in link_lower or
+                        "/agendacenter/" in link_lower
+                    )
+
+                    if is_doc_link:
                         if link not in doc_queue: doc_queue.append(link)
                     else:
                         page_queue.append(link)
