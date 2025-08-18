@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from ingestion import config
-from ingestion import database
+# database module is not directly used by orchestrator
 
 def run_worker(county_name):
     """
@@ -17,26 +17,27 @@ def run_worker(county_name):
     """
     logging.info(f"Orchestrator: Spawning worker for {county_name} county.")
     try:
-        # We use subprocess to call the worker script. This ensures each worker
-        # has a clean, separate memory space.
         command = [sys.executable, "-m", "ingestion.worker", "--county", county_name]
 
-        # We run the process and capture its output
+        project_root = Path(__file__).resolve().parent.parent.parent
+
         result = subprocess.run(
             command,
             capture_output=True,
             text=True,
-            check=True, # This will raise an exception if the worker returns a non-zero exit code
-            cwd=config.BASE_DIR.parent # Run from the project root
+            check=False, # Set to False to handle errors manually
+            cwd=project_root
         )
-        logging.info(f"Worker for {county_name} finished successfully.")
-        logging.debug(f"[{county_name} STDOUT]:\n{result.stdout}")
-        if result.stderr:
-             logging.warning(f"[{county_name} STDERR]:\n{result.stderr}")
 
-    except subprocess.CalledProcessError as e:
-        logging.error(f"Worker for {county_name} failed with exit code {e.returncode}.")
-        logging.error(f"[{county_name} STDERR]:\n{e.stderr}")
+        if result.returncode == 0:
+            logging.info(f"Worker for {county_name} finished successfully.")
+        else:
+            logging.error(f"Worker for {county_name} failed with exit code {result.returncode}.")
+            logging.error(f"[{county_name} STDERR]:\n{result.stderr}")
+
+        if result.stdout:
+            logging.debug(f"[{county_name} STDOUT]:\n{result.stdout}")
+
     except Exception as e:
         logging.critical(f"An unexpected error occurred while running worker for {county_name}: {e}")
 
@@ -44,11 +45,8 @@ def main():
     """
     Main orchestrator for launching parallel scrapers.
     """
-    config.setup_logging() # Orchestrator has its own log
+    config.setup_logging()
     logging.info("--- Main Orchestrator Started ---")
-
-    # On startup, reset any jobs that were interrupted mid-run
-    # asyncio.run(database.reset_stale_targets()) # This needs to be run in an async context, worker can handle it.
 
     county_configs = config.load_county_configs()
     if not county_configs:
@@ -58,15 +56,12 @@ def main():
     county_names = [cfg.get('county_name') for cfg in county_configs if cfg.get('county_name')]
     logging.info(f"Found configurations for counties: {', '.join(county_names)}")
 
-    processes = []
-    for county_name in county_names:
-        process = multiprocessing.Process(target=run_worker, args=(county_name,))
-        processes.append(process)
-        process.start()
+    if not county_names:
+        logging.warning("No counties with a 'county_name' key found in configs. Exiting.")
+        return
 
-    # Wait for all worker processes to complete
-    for process in processes:
-        process.join()
+    with multiprocessing.Pool(processes=len(county_names)) as pool:
+        pool.map(run_worker, county_names)
 
     logging.info("--- All county workers have finished. Orchestrator shutting down. ---")
 

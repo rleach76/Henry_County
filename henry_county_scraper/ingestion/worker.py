@@ -28,9 +28,11 @@ async def scrape_county(county_name: str):
     logging.info(f"--- Worker starting for county: {county_name} ---")
     db_conn = None
     try:
+        # On startup, reset any jobs for this county that were interrupted mid-run
+        await database.reset_stale_targets(county_name)
+
         db_conn = await database.get_db_connection()
 
-        # Fetch all pending targets for this specific county
         targets = await db_conn.fetch("""
             SELECT id, url, category, scrape_frequency
             FROM scraping_targets
@@ -58,7 +60,7 @@ async def scrape_county(county_name: str):
                     else: scraper_func = SCRAPER_MAPPING.get(category, scrapers.crawl_generic_website)
 
                     if scraper_func:
-                        await scraper_func(browser, url)
+                        await scraper_func(browser, url, county_name) # Pass county_name to scrapers
                         new_status = 'pending' if freq == 'always' else 'completed'
                         await db_conn.execute("UPDATE scraping_targets SET status = $1 WHERE id = $2", new_status, target_id)
                         logging.info(f"[{county_name}] Successfully processed target {target_id}. New status: {new_status}")
@@ -83,7 +85,6 @@ def main():
     parser.add_argument("--county", required=True, help="The name of the county to scrape.")
     args = parser.parse_args()
 
-    # Setup logging for the worker process
     config.setup_logging()
 
     asyncio.run(scrape_county(args.county))

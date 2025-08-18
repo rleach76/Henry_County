@@ -57,21 +57,28 @@ async def init_db():
         logging.critical(f"CRITICAL: Failed to initialize database. {e}")
         raise
 
-async def reset_stale_targets():
+async def reset_stale_targets(county_name=None):
     """
     Resets any targets that were 'in_progress' or 'failed' back to 'pending'.
-    This allows the scraper to retry them on the next run.
+    If a county_name is provided, it only resets targets for that county.
     """
     db_conn = None
     try:
         db_conn = await get_db_connection()
-        # We only reset 'once' frequency jobs that failed. 'always' jobs are retried anyway.
-        result = await db_conn.execute("""
-            UPDATE scraping_targets
-            SET status = 'pending'
-            WHERE status IN ('in_progress', 'failed') AND scrape_frequency = 'once'
-        """)
-        logging.info(f"Reset status for {result.split()[-1]} stale targets.")
+        if county_name:
+            logging.info(f"Resetting stale targets for county: {county_name}...")
+            query = """
+                UPDATE scraping_targets
+                SET status = 'pending'
+                WHERE county_name = $1 AND status IN ('in_progress', 'failed')
+            """
+            result = await db_conn.execute(query, county_name)
+        else:
+            logging.info("Resetting all stale targets...")
+            query = "UPDATE scraping_targets SET status = 'pending' WHERE status IN ('in_progress', 'failed')"
+            result = await db_conn.execute(query)
+
+        logging.info(f"Reset status for {result.split()[-1]} targets.")
     except Exception as e:
         logging.error(f"Failed to reset stale targets: {e}")
     finally:
