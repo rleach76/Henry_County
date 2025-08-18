@@ -89,9 +89,13 @@ async def crawl_generic_website(browser: Browser, start_url: str, county_name: s
                 await db_conn.execute(
                     """
                     INSERT INTO scraped_pages (county_name, url, source_site, content_type, status, text_content)
-                    VALUES ($1, $2, 'text/html', 'processed_text', $3) ON CONFLICT (url) DO UPDATE SET text_content = EXCLUDED.text_content, timestamp = NOW()
+                    VALUES ($1, $2, $3, 'processed_text', $4, $5)
+                    ON CONFLICT (url) DO UPDATE SET
+                        county_name = EXCLUDED.county_name,
+                        text_content = EXCLUDED.text_content,
+                        timestamp = NOW()
                     """,
-                    county_name, url, source_domain, main_text
+                    county_name, url, source_domain, 'processed_text', main_text
                 )
 
                 for a_tag in soup.find_all('a', href=True):
