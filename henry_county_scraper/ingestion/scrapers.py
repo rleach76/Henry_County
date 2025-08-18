@@ -98,6 +98,52 @@ async def crawl_generic_website(browser: Browser, start_url: str, county_name: s
                     county_name, url, source_domain, 'processed_text', main_text
                 )
 
+                # --- 2. Image Extraction and Processing ---
+                async with aiohttp.ClientSession() as session:
+                    for img in content_element.find_all('img'):
+                        try:
+                            # Apply heuristics to skip non-content images
+                            if int(img.get('width', 100)) < 50 or int(img.get('height', 100)) < 50: continue
+                            if img.find_parent('a'): continue
+
+                            img_url = img.get('src')
+                            if not img_url or img_url.startswith('data:'): continue
+
+                            full_img_url = urljoin(url, img_url)
+
+                            # Fetch and process the image
+                            async with session.get(full_img_url, timeout=30) as response:
+                                if response.status != 200: continue
+
+                                img_bytes = await response.read()
+                                if len(img_bytes) > config.MAX_FILE_SIZE_BYTES: continue
+
+                                ocr_text = await utils.perform_ocr(img_bytes)
+
+                                # Save file and record in DB
+                                filename = os.path.basename(urlparse(full_img_url).path) or f"{source_domain.replace('.', '_')}_image.png"
+                                filepath = os.path.join(config.DOWNLOAD_DIR, county_name, filename)
+                                os.makedirs(os.path.dirname(filepath), exist_ok=True)
+                                with open(filepath, "wb") as f: f.write(img_bytes)
+
+                                content_type = response.headers.get('Content-Type', 'image/unknown')
+                                page_id = await db_conn.fetchval(
+                                    """
+                                    INSERT INTO scraped_pages (county_name, url, source_site, content_type, status)
+                                    VALUES ($1, $2, $3, $4, 'downloaded_ocr')
+                                    ON CONFLICT (url) DO UPDATE SET status = EXCLUDED.status, timestamp = NOW() RETURNING id
+                                    """,
+                                    county_name, full_img_url, source_domain, content_type
+                                )
+                                await db_conn.execute(
+                                    "INSERT INTO downloaded_documents (county_name, page_id, filepath, file_type, ocr_text) VALUES ($1, $2, $3, $4, $5)",
+                                    county_name, page_id, filepath, content_type, ocr_text
+                                )
+                                logging.info(f"[{county_name}] Saved image {filepath} and OCR text")
+                        except Exception as e:
+                            logging.error(f"[{county_name}] Could not process image at {img.get('src')}: {e}")
+
+                # --- 3. Link Discovery ---
                 for a_tag in soup.find_all('a', href=True):
                     link = urljoin(url, a_tag['href']).split('#')[0]
                     if "antiforgery" in link.lower() or urlparse(link).netloc != source_domain or link in visited_urls:
