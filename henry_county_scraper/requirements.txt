@@ -8,3 +8,4 @@ pdfminer.six
 docx2txt
 feedparser
 asyncpg
+PyYAML
