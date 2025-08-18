@@ -17,7 +17,8 @@ def run_worker(county_name):
     """
     logging.info(f"Orchestrator: Spawning worker for {county_name} county.")
     try:
-        command = [sys.executable, "-m", "ingestion.worker", "--county", county_name]
+        # The module path must be the full path from the project root
+        command = [sys.executable, "-m", "henry_county_scraper.ingestion.worker", "--county", county_name]
 
         project_root = Path(__file__).resolve().parent.parent.parent
 
