@@ -30,7 +30,17 @@ def setup_logging(log_filename="scraper.log"):
 
     log_file = LOGS_DIR / log_filename
 
-    # Reset any existing handlers
+    # Rotate the existing log file if it exists
+    if log_file.exists():
+        try:
+            mod_time = datetime.fromtimestamp(log_file.stat().st_mtime)
+            timestamp_str = mod_time.strftime("%Y%m%d_%H%M%S")
+            archive_log_file = log_file.with_name(f"{log_file.stem}_{timestamp_str}{log_file.suffix}")
+            log_file.rename(archive_log_file)
+        except Exception as e:
+            print(f"Could not rotate log file {log_file}: {e}") # Use print as logging is not yet configured
+
+    # Reset any existing handlers from other processes
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 
