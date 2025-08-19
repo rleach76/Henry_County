@@ -20,28 +20,25 @@ MIME_TYPE_ALLOWLIST = [
 OCR_MIME_TYPES = ["image/jpeg", "image/png", "image/tiff", "image/gif"]
 MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
 
-def setup_logging():
-    """Creates necessary directories, rotates old logs, and sets up logging."""
+def setup_logging(log_filename="scraper.log"):
+    """Creates necessary directories, rotates old logs, and sets up process-safe logging."""
     from datetime import datetime
 
     os.makedirs(LOGS_DIR, exist_ok=True)
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
     os.makedirs(STORAGE_DIR, exist_ok=True)
 
-    log_file = LOGS_DIR / "scraper.log"
-    if log_file.exists():
-        # Get modification time and format it
-        mod_time = datetime.fromtimestamp(log_file.stat().st_mtime)
-        timestamp_str = mod_time.strftime("%Y-%m-%d_%H-%M-%S")
-        # Rename old log file
-        archive_log_file = LOGS_DIR / f"scraper_{timestamp_str}.log"
-        log_file.rename(archive_log_file)
+    log_file = LOGS_DIR / log_filename
+
+    # Reset any existing handlers
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
 
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(process)d - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler(os.path.join(LOGS_DIR, "scraper.log")),
+            logging.FileHandler(log_file),
             logging.StreamHandler()
         ]
     )

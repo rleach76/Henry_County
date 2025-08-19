@@ -46,7 +46,7 @@ def main():
     """
     Main orchestrator for launching parallel scrapers.
     """
-    config.setup_logging()
+    config.setup_logging(log_filename="orchestrator.log")
     logging.info("--- Main Orchestrator Started ---")
 
     county_configs = config.load_county_configs()

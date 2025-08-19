@@ -93,7 +93,11 @@ def main():
     parser = argparse.ArgumentParser(description="Scraper worker for a single county.")
     parser.add_argument("--county", required=True, help="The name of the county to scrape.")
     args = parser.parse_args()
-    config.setup_logging()
+
+    # Create a unique log file for this worker process
+    log_filename = f"{args.county.lower().replace(' ', '_')}_worker.log"
+    config.setup_logging(log_filename=log_filename)
+
     asyncio.run(scrape_county(args.county))
 
 if __name__ == "__main__":
