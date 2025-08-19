@@ -70,6 +70,17 @@ CREATE TABLE rss_articles (
     scraped_timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Table to store information about files found inside archives.
+CREATE TABLE archived_files (
+    id SERIAL PRIMARY KEY,
+    county_name VARCHAR(255) NOT NULL,
+    parent_zip_id INTEGER REFERENCES downloaded_documents(id) ON DELETE CASCADE,
+    filename_in_zip VARCHAR(1024) NOT NULL,
+    file_type VARCHAR(255),
+    text_content TEXT,
+    processed_timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Optional: Add indexes for faster queries on frequently searched columns.
 CREATE INDEX idx_scraping_targets_county_status ON scraping_targets(county_name, status);
 CREATE INDEX idx_scraped_pages_county_url ON scraped_pages(county_name, url);

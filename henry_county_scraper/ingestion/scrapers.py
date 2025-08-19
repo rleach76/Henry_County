@@ -12,7 +12,7 @@ from . import utils
 from . import config
 from . import database
 
-DOCUMENT_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx']
+DOCUMENT_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.zip']
 IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff']
 
 async def save_business_listing(pool: Pool, county_name, source, name, address, phone, website, url):

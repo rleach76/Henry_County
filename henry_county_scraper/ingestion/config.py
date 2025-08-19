@@ -14,7 +14,7 @@ STORAGE_DIR = BASE_DIR / "storage"
 MIME_TYPE_ALLOWLIST = [
     "text/html", "text/plain", "application/json", "application/xml",
     "application/rss+xml", "application/atom+xml", "image/svg+xml",
-    "application/pdf", "application/msword",
+    "application/zip", "application/pdf", "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]
 OCR_MIME_TYPES = ["image/jpeg", "image/png", "image/tiff", "image/gif"]

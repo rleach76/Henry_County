@@ -56,6 +56,46 @@ async def download_and_process_file(session: aiohttp.ClientSession, pool: Pool, 
                     elif "word" in content_type:
                         try: text_content, status = docx2txt.process(BytesIO(body)), "processed_docx"
                         except Exception: status = "docx_extraction_failed"
+                    elif "zip" in content_type:
+                        import zipfile
+                        logging.info(f"[{county_name}] Processing zip file from {url}")
+                        # First, record the parent zip file in the documents table
+                        page_id = await conn.fetchval(
+                            """
+                            INSERT INTO scraped_pages (county_name, url, source_site, content_type, status)
+                            VALUES ($1, $2, $3, $4, 'downloaded_zip')
+                            ON CONFLICT (url) DO UPDATE SET status = EXCLUDED.status, timestamp = NOW() RETURNING id
+                            """,
+                            county_name, url, source_site, content_type
+                        )
+                        await conn.execute(
+                            "INSERT INTO downloaded_documents (county_name, page_id, filepath, file_type) VALUES ($1, $2, $3, $4)",
+                            county_name, page_id, "in-memory-archive", content_type
+                        )
+                        # Now, process the contents in memory
+                        with zipfile.ZipFile(BytesIO(body)) as zf:
+                            for file_info in zf.infolist():
+                                if file_info.is_dir(): continue
+                                inner_filename = file_info.filename
+                                inner_content_text, inner_content_type = "", "unknown"
+                                try:
+                                    with zf.open(file_info) as inner_file:
+                                        inner_body = inner_file.read()
+                                        if inner_filename.lower().endswith('.pdf'):
+                                            inner_content_text = extract_pdf_text(BytesIO(inner_body))
+                                            inner_content_type = "application/pdf"
+                                        elif inner_filename.lower().endswith(('.txt', '.csv', '.json', '.xml')):
+                                            inner_content_text = inner_body.decode('utf-8', errors='ignore')
+                                            inner_content_type = "text/plain"
+
+                                    if inner_content_text:
+                                        await conn.execute(
+                                            "INSERT INTO archived_files (county_name, parent_zip_id, filename_in_zip, file_type, text_content) VALUES ($1, $2, $3, $4, $5)",
+                                            county_name, page_id, inner_filename, inner_content_type, inner_content_text
+                                        )
+                                except Exception as inner_e:
+                                    logging.error(f"Failed to process {inner_filename} from zip {url}: {inner_e}")
+                        return # Return early as we handled the inserts manually
 
                     await conn.execute(
                         """
