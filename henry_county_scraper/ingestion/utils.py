@@ -28,7 +28,9 @@ async def download_and_process_file(session: aiohttp.ClientSession, pool: Pool, 
     Directly downloads a file and processes it, using a shared session and connection pool.
     """
     try:
-        async with session.get(url, timeout=60) as response:
+        # Setting a browser-like User-Agent and disabling SSL verification for problematic sites
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        async with session.get(url, timeout=60, headers=headers, ssl=False) as response:
             if response.status != 200:
                 logging.warning(f"[{county_name}] Direct download failed for {url} with status {response.status}")
                 return
