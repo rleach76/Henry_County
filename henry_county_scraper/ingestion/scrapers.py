@@ -96,7 +96,15 @@ async def crawl_generic_website(browser: Browser, start_url: str, county_name: s
                     visited_urls.add(link)
                     link_lower = link.lower()
                     link_ext = os.path.splitext(urlparse(link).path)[1].lower()
-                    is_doc_link = (link_ext in DOCUMENT_EXTENSIONS or link_ext in IMAGE_EXTENSIONS or "/documentcenter/" in link_lower or "/viewfile/" in link_lower or "/agendacenter/" in link_lower)
+
+                    is_doc_link = (
+                        link_ext in DOCUMENT_EXTENSIONS or
+                        link_ext in IMAGE_EXTENSIONS or
+                        "/documentcenter/" in link_lower or
+                        "/viewfile/" in link_lower or
+                        "/agendacenter/" in link_lower or
+                        link_lower.endswith(('-pdf', '-doc', '-docx'))
+                    )
 
                     if is_doc_link:
                         if link not in doc_queue: doc_queue.append(link)
