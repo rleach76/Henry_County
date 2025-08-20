@@ -42,9 +42,16 @@ async def scrape_county(county_name: str):
         # --- Scrape RSS Feeds ---
         rss_feeds_dict = county_config.get('rss_feeds', {})
         if rss_feeds_dict:
-            # Extract the URLs (the values) from the dictionary
-            rss_feed_urls = list(rss_feeds_dict.values())
-            await scrapers.scrape_rss_feeds(database.pool, county_name, rss_feed_urls)
+            # Flatten the list of URLs, handling both strings and lists of strings
+            rss_feed_urls = []
+            for item in rss_feeds_dict.values():
+                if isinstance(item, str):
+                    rss_feed_urls.append(item)
+                elif isinstance(item, list):
+                    rss_feed_urls.extend(item)
+
+            if rss_feed_urls:
+                await scrapers.scrape_rss_feeds(database.pool, county_name, rss_feed_urls)
         else:
             logging.info(f"No RSS feeds to scrape for {county_name}.")
 
