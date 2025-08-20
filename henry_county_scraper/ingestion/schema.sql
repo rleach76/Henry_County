@@ -99,6 +99,6 @@ CREATE TABLE IF NOT EXISTS archived_files (
 );
 
 -- Indexes for faster queries
-CREATE INDEX idx_scraping_targets_county_status ON scraping_targets(county_name, status);
-CREATE INDEX idx_scraped_pages_county_url ON scraped_pages(county_name, url);
-CREATE INDEX idx_rss_articles_county_link ON rss_articles(county_name, link);
+CREATE INDEX IF NOT EXISTS idx_scraping_targets_county_status ON scraping_targets(county_name, status);
+CREATE INDEX IF NOT EXISTS idx_scraped_pages_county_url ON scraped_pages(county_name, url);
+CREATE INDEX IF NOT EXISTS idx_rss_articles_county_link ON rss_articles(county_name, link);
