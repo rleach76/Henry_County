@@ -129,6 +129,5 @@ async def download_and_process_file(session: aiohttp.ClientSession, pool: Pool, 
                         "INSERT INTO downloaded_documents (county_name, page_id, filepath, file_type, ocr_text) VALUES ($1, $2, $3, $4, $5)",
                         county_name, page_id, filepath, content_type, ocr_text
                     )
-
-    except Exception as e:
-        logging.error(f"An unexpected error occurred while directly downloading {url}: {e}")
+        except Exception as e:
+            logging.error(f"An unexpected error occurred while directly downloading {url}: {e}")
