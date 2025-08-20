@@ -23,19 +23,22 @@ async def perform_ocr(image_bytes: bytes) -> str:
         logging.error(f"OCR failed: {e}")
         return ""
 
-async def download_and_process_file(session: aiohttp.ClientSession, pool: Pool, url: str, county_name: str):
+async def download_and_process_file(session: aiohttp.ClientSession, pool: Pool, url: str, county_name: str, semaphore: asyncio.Semaphore):
     """
-    Directly downloads a file and processes it, using a shared session and connection pool.
+    Directly downloads a file and processes it, using a shared session, connection pool,
+    and a semaphore to limit concurrency.
     """
-    try:
-        # Setting a browser-like User-Agent and disabling SSL verification for problematic sites
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-        async with session.get(url, timeout=60, headers=headers, ssl=False) as response:
-            if response.status != 200:
-                logging.warning(f"[{county_name}] Direct download failed for {url} with status {response.status}")
-                return
+    async with semaphore:
+        try:
+            # Setting a browser-like User-Agent and disabling SSL verification for problematic sites
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+            logging.info(f"[{county_name}] Attempting to download: {url}")
+            async with session.get(url, timeout=60, headers=headers, ssl=False) as response:
+                if response.status != 200:
+                    logging.warning(f"[{county_name}] Direct download failed for {url} with status {response.status}")
+                    return
 
-            content_type = response.headers.get("content-type", "").lower().split(';')[0]
+                content_type = response.headers.get("content-type", "").lower().split(';')[0]
             body = await response.read()
 
             if len(body) > config.MAX_FILE_SIZE_BYTES:

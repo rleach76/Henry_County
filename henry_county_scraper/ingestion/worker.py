@@ -27,10 +27,25 @@ async def scrape_county(county_name: str):
     """
     logging.info(f"--- Worker starting for county: {county_name} ---")
 
+    # Load all county configurations and find the one for this worker
+    all_configs = config.load_county_configs()
+    county_config = all_configs.get(county_name)
+
+    if not county_config:
+        logging.error(f"Configuration for '{county_name}' not found. Worker exiting.")
+        return
+
     # Create the connection pool for this worker
     await database.create_connection_pool()
 
     try:
+        # --- Scrape RSS Feeds ---
+        rss_feed_urls = county_config.get('rss_feeds', [])
+        if rss_feed_urls:
+            await scrapers.scrape_rss_feeds(database.pool, county_name, rss_feed_urls)
+        else:
+            logging.info(f"No RSS feeds to scrape for {county_name}.")
+
         # On startup, reset any jobs for this county that were interrupted mid-run
         await database.reset_stale_targets(county_name)
 

@@ -56,6 +56,9 @@ async def reset_stale_targets(county_name=None):
             else:
                 query = "UPDATE scraping_targets SET status = 'pending' WHERE status IN ('in_progress', 'failed')"
                 result = await conn.execute(query)
-            logging.info(f"Reset status for {result.split()[-1]} targets.")
+
+            # The result from execute is a string like 'UPDATE 5'. We extract the number.
+            num_updated = result.split()[-1]
+            logging.info(f"Reset status to 'pending' for {num_updated} targets.")
     except Exception as e:
         logging.error(f"Failed to reset stale targets: {e}")

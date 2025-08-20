@@ -43,6 +43,18 @@ def create_yaml_file(county_name, seed_urls):
     print(f"Successfully created/updated config file: {filepath}")
     return list(seed_urls)
 
+import os
+import asyncpg
+
+# --- Database connection details (consider moving to a shared config) ---
+DB_USER = os.getenv("DB_USER", "postgres")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_NAME = os.getenv("DB_NAME", "henry_county_db")
+DSN = f"postgres://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+
 async def seed_urls_to_db(county_name, urls_to_seed):
     """Seeds a list of URLs for a specific county into the database."""
     if not urls_to_seed:
@@ -52,7 +64,7 @@ async def seed_urls_to_db(county_name, urls_to_seed):
     print(f"Seeding {len(urls_to_seed)} URLs for {county_name} into the database...")
     db_conn = None
     try:
-        db_conn = await database.get_db_connection()
+        db_conn = await asyncpg.connect(dsn=DSN)
 
         records_to_insert = [
             (county_name, url, 'government', 'pending', 'always') for url in urls_to_seed
