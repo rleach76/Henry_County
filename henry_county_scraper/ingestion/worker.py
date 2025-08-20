@@ -29,7 +29,7 @@ async def scrape_county(county_name: str):
 
     # Load all county configurations and find the one for this worker
     all_configs = config.load_county_configs()
-    county_config = all_configs.get(county_name)
+    county_config = next((c for c in all_configs if c.get('county_name') == county_name), None)
 
     if not county_config:
         logging.error(f"Configuration for '{county_name}' not found. Worker exiting.")
