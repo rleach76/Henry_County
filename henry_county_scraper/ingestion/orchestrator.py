@@ -44,25 +44,10 @@ def run_worker(county_name):
 async def main_async():
     """
     Main asynchronous orchestrator function.
-    Initializes the database and then launches parallel scrapers.
+    Launches parallel scrapers for each configured county.
     """
     config.setup_logging(log_filename="orchestrator.log")
     logging.info("--- Main Orchestrator Started ---")
-
-    # --- Initialize Database Schema ---
-    logging.info("Orchestrator: Initializing database...")
-    try:
-        await database.create_connection_pool()
-        await database.init_db()
-        logging.info("Orchestrator: Database initialization complete.")
-    except Exception as e:
-        logging.critical(f"Orchestrator: Database initialization failed: {e}")
-        logging.critical("Orchestrator: Please ensure the database service is running and accessible.")
-        return # Exit if DB initialization fails
-    finally:
-        if database.pool:
-            await database.close_connection_pool()
-    # --- End Initialization ---
 
     county_configs = config.load_county_configs()
     if not county_configs:

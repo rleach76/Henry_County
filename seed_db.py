@@ -7,6 +7,11 @@ import logging
 # Basic logging setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent))
+from henry_county_scraper.ingestion import database
+
 # Database connection details from environment variables
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
@@ -19,13 +24,16 @@ COUNTIES_DIR = "henry_county_scraper/ingestion/counties"
 
 async def seed_database():
     """
-    Connects to the database, scans the counties directory, and populates
+    Connects to the database, initializes the schema, and populates
     the scraping_targets table with seed URLs from each county's YAML file.
     """
     conn = None
     try:
         conn = await asyncpg.connect(dsn=DSN)
         logging.info("Successfully connected to the database.")
+
+        # Initialize the database schema
+        await database.init_db(conn)
 
         if not os.path.isdir(COUNTIES_DIR):
             logging.error(f"Counties directory not found at '{COUNTIES_DIR}'")

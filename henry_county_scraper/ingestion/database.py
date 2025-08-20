@@ -30,20 +30,18 @@ async def close_connection_pool():
         await pool.close()
         logging.info("Database connection pool closed.")
 
-async def init_db():
-    """Initializes the database by connecting and running the schema.sql file."""
+async def init_db(conn: asyncpg.Connection):
+    """Initializes the database by running the schema.sql file on the given connection."""
     try:
         dir_path = os.path.dirname(os.path.realpath(__file__))
         schema_path = os.path.join(dir_path, 'schema.sql')
         with open(schema_path, 'r') as f:
             schema_sql = f.read()
 
-        # Use the pool to get a connection for initialization
-        async with pool.acquire() as conn:
-            await conn.execute(schema_sql)
-        logging.info("Database initialized successfully from schema.sql.")
+        await conn.execute(schema_sql)
+        logging.info("Database schema applied successfully from schema.sql.")
     except Exception as e:
-        logging.critical(f"CRITICAL: Failed to initialize database. {e}")
+        logging.critical(f"CRITICAL: Failed to initialize database from schema file. {e}")
         raise
 
 async def reset_stale_targets(county_name=None):
