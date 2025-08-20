@@ -117,8 +117,15 @@ async def crawl_generic_website(browser: Browser, start_url: str, county_name: s
 
     logging.info(f"[{county_name}] Found {len(doc_queue)} documents to download.")
     if doc_queue:
+        # Use a semaphore to limit concurrent downloads to 5
+        semaphore = asyncio.Semaphore(5)
+
+        async def download_with_semaphore(session, pool, doc_url, county_name):
+            async with semaphore:
+                return await utils.download_and_process_file(session, pool, doc_url, county_name)
+
         async with aiohttp.ClientSession() as session:
-            tasks = [utils.download_and_process_file(session, pool, doc_url, county_name) for doc_url in doc_queue]
+            tasks = [download_with_semaphore(session, pool, doc_url, county_name) for doc_url in doc_queue]
             await asyncio.gather(*tasks)
     logging.info(f"[{county_name}] Finished intelligent crawl for: {start_url}")
 
