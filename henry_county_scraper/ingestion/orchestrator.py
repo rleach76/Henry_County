@@ -7,8 +7,9 @@ from pathlib import Path
 # Adjust path to import from sibling modules
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
+import asyncio
 from ingestion import config
-# database module is not directly used by orchestrator
+from ingestion import database
 
 def run_worker(county_name):
     """
@@ -17,16 +18,14 @@ def run_worker(county_name):
     """
     logging.info(f"Orchestrator: Spawning worker for {county_name} county.")
     try:
-        # The module path must be the full path from the project root
         command = [sys.executable, "-m", "henry_county_scraper.ingestion.worker", "--county", county_name]
-
         project_root = Path(__file__).resolve().parent.parent.parent
 
         result = subprocess.run(
             command,
             capture_output=True,
             text=True,
-            check=False, # Set to False to handle errors manually
+            check=False,
             cwd=project_root
         )
 
@@ -42,16 +41,32 @@ def run_worker(county_name):
     except Exception as e:
         logging.critical(f"An unexpected error occurred while running worker for {county_name}: {e}")
 
-def main():
+async def main_async():
     """
-    Main orchestrator for launching parallel scrapers.
+    Main asynchronous orchestrator function.
+    Initializes the database and then launches parallel scrapers.
     """
     config.setup_logging(log_filename="orchestrator.log")
     logging.info("--- Main Orchestrator Started ---")
 
+    # --- Initialize Database Schema ---
+    logging.info("Orchestrator: Initializing database...")
+    try:
+        await database.create_connection_pool()
+        await database.init_db()
+        logging.info("Orchestrator: Database initialization complete.")
+    except Exception as e:
+        logging.critical(f"Orchestrator: Database initialization failed: {e}")
+        logging.critical("Orchestrator: Please ensure the database service is running and accessible.")
+        return # Exit if DB initialization fails
+    finally:
+        if database.pool:
+            await database.close_connection_pool()
+    # --- End Initialization ---
+
     county_configs = config.load_county_configs()
     if not county_configs:
-        logging.warning("No county configuration files found in /counties directory. Exiting.")
+        logging.warning("No county configuration files found. Exiting.")
         return
 
     county_names = [cfg.get('county_name') for cfg in county_configs if cfg.get('county_name')]
@@ -65,6 +80,13 @@ def main():
         pool.map(run_worker, county_names)
 
     logging.info("--- All county workers have finished. Orchestrator shutting down. ---")
+
+def main():
+    """Synchronous wrapper for the main async function."""
+    try:
+        asyncio.run(main_async())
+    except KeyboardInterrupt:
+        logging.info("Orchestrator shut down by user.")
 
 if __name__ == "__main__":
     main()
