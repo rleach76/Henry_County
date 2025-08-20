@@ -1,14 +1,10 @@
 -- schema.sql for Henry County Scraper (PostgreSQL)
 
-DROP TABLE IF EXISTS scraping_targets CASCADE;
-DROP TABLE IF EXISTS scraped_pages CASCADE;
-DROP TABLE IF EXISTS downloaded_documents CASCADE;
-DROP TABLE IF EXISTS business_listings CASCADE;
-DROP TABLE IF EXISTS rss_articles CASCADE;
-DROP TABLE IF EXISTS archived_files CASCADE;
+-- This schema is designed to be idempotent. Using `CREATE TABLE IF NOT EXISTS`
+-- ensures that running the seeder multiple times will not cause errors or delete data.
 
 -- Master queue for URLs to be scraped
-CREATE TABLE scraping_targets (
+CREATE TABLE IF NOT EXISTS scraping_targets (
     id SERIAL PRIMARY KEY,
     county_name VARCHAR(255) NOT NULL,
     url VARCHAR(2048) NOT NULL,
@@ -34,7 +30,7 @@ CREATE TABLE IF NOT EXISTS rss_feed_entries (
 );
 
 -- Stores versioned text content from scraped pages/documents
-CREATE TABLE scraped_pages (
+CREATE TABLE IF NOT EXISTS scraped_pages (
     id SERIAL PRIMARY KEY,
     county_name VARCHAR(255) NOT NULL,
     url VARCHAR(2048) NOT NULL,
@@ -50,7 +46,7 @@ CREATE TABLE scraped_pages (
 );
 
 -- Tracks downloaded binary files (parent record for images, zips, etc.)
-CREATE TABLE downloaded_documents (
+CREATE TABLE IF NOT EXISTS downloaded_documents (
     id SERIAL PRIMARY KEY,
     county_name VARCHAR(255) NOT NULL,
     page_id INTEGER REFERENCES scraped_pages(id) ON DELETE CASCADE,
@@ -62,7 +58,7 @@ CREATE TABLE downloaded_documents (
 );
 
 -- Stores structured business listing data
-CREATE TABLE business_listings (
+CREATE TABLE IF NOT EXISTS business_listings (
     id SERIAL PRIMARY KEY,
     county_name VARCHAR(255) NOT NULL,
     source VARCHAR(255) NOT NULL,
@@ -78,7 +74,7 @@ CREATE TABLE business_listings (
 );
 
 -- Stores structured data from RSS feeds
-CREATE TABLE rss_articles (
+CREATE TABLE IF NOT EXISTS rss_articles (
     id SERIAL PRIMARY KEY,
     county_name VARCHAR(255) NOT NULL,
     source_feed VARCHAR(255) NOT NULL,
@@ -91,7 +87,7 @@ CREATE TABLE rss_articles (
 );
 
 -- Stores text content from files found inside zip archives
-CREATE TABLE archived_files (
+CREATE TABLE IF NOT EXISTS archived_files (
     id SERIAL PRIMARY KEY,
     county_name VARCHAR(255) NOT NULL,
     parent_zip_id INTEGER REFERENCES downloaded_documents(id) ON DELETE CASCADE,
