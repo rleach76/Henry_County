@@ -202,3 +202,357 @@ async def scrape_rss_feeds(pool: Pool, county_name: str, feed_urls: list):
 
             except Exception as e:
                 logging.error(f"[{county_name}] Error processing RSS feed {feed_url}: {e}")
+
+async def _save_recorder_record(pool: Pool, county_name: str, record: dict, url: str):
+    """Saves a single recorder record to the database."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO recorder_records (county_name, document_number, document_type, recording_date, grantor, grantee, description, scraped_from_url)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (county_name, document_number) DO NOTHING
+            """,
+            county_name,
+            record.get("doc_number"),
+            record.get("doc_type"),
+            record.get("record_date"),
+            record.get("grantor"),
+            record.get("grantee"),
+            record.get("description"),
+            url,
+        )
+
+async def scrape_kofile_recorder(browser: Browser, start_url: str, county_name: str, pool: Pool):
+    """
+    Scrapes the Kofile portal for recorder/deed records.
+    This is a complex multi-step process involving:
+    1. Navigating to the site.
+    2. Clicking 'Guest' login.
+    3. Navigating to the search form.
+    4. Performing a search (e.g., by date).
+    5. Parsing results and saving to the database.
+    """
+    logging.info(f"[{county_name}] Starting Kofile recorder scrape for: {start_url}")
+    page = await browser.new_page()
+    try:
+        await page.goto(start_url, wait_until="domcontentloaded", timeout=60000)
+
+        # 1. Handle Guest Login
+        guest_button = page.locator('a:has-text("Guest")')
+        if await guest_button.is_visible():
+            await guest_button.click()
+            await page.wait_for_load_state("domcontentloaded")
+            # After login, there might be a welcome/disclaimer page.
+            # Look for a search link or button. Common text includes "Document Search", "Accept", "Continue".
+            accept_button = page.locator('a:has-text("Accept")')
+            if await accept_button.is_visible():
+                 await accept_button.click()
+                 await page.wait_for_load_state("domcontentloaded")
+
+
+        # 2. Perform Search by Date
+        # Use a reliable selector for the start date input. Kofile often uses name attributes.
+        from datetime import datetime, timedelta
+        # Search for documents recorded in the last 7 days.
+        start_date = (datetime.now() - timedelta(days=7)).strftime("%m/%d/%Y")
+        end_date = datetime.now().strftime("%m/%d/%Y")
+
+        await page.fill('input[name="searchCriteria.startDate"]', start_date)
+        await page.fill('input[name="searchCriteria.endDate"]', end_date)
+
+        # Click the search button
+        await page.locator('input[type="submit"][value="Search"]').click()
+        await page.wait_for_selector('table.results-table', timeout=60000)
+
+        # 3. Parse Results
+        rows = await page.query_selector_all('table.results-table tbody tr')
+        logging.info(f"[{county_name}] Found {len(rows)} records in Kofile search results.")
+
+        for row in rows:
+            cells = await row.query_selector_all('td')
+            if len(cells) < 8: continue # Basic check for valid row
+
+            # Extract data based on typical Kofile table structure. This may need adjustment.
+            doc_number_element = await cells[2].query_selector('a')
+            doc_number = await doc_number_element.inner_text() if doc_number_element else ""
+
+            record_date_str = await cells[3].inner_text()
+            record_date = datetime.strptime(record_date_str.strip(), "%m/%d/%Y").date() if record_date_str else None
+
+            record = {
+                "doc_number": doc_number.strip(),
+                "doc_type": (await cells[1].inner_text()).strip(),
+                "record_date": record_date,
+                "grantor": (await cells[5].inner_text()).strip(),
+                "grantee": (await cells[6].inner_text()).strip(),
+                "description": (await cells[7].inner_text()).strip(),
+            }
+            await _save_recorder_record(pool, county_name, record, page.url)
+
+    except Exception as e:
+        logging.error(f"[{county_name}] An error occurred during Kofile scrape: {e}")
+    finally:
+        await page.close()
+
+async def _save_sheriff_sale(pool: Pool, county_name: str, sale: dict, url: str):
+    """Saves a single sheriff sale record to the database."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO sheriff_sales (county_name, case_number, sale_date, property_address, plaintiff, defendant, appraisal_value, status, scraped_from_url)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (county_name, case_number, sale_date) DO NOTHING
+            """,
+            county_name,
+            sale.get("case_number"),
+            sale.get("sale_date"),
+            sale.get("address"),
+            sale.get("plaintiff"),
+            sale.get("defendant"),
+            sale.get("appraisal"),
+            sale.get("status"),
+            url,
+        )
+
+async def scrape_realauction_sheriff_sales(browser: Browser, start_url: str, county_name: str, pool: Pool):
+    """
+    Scrapes the RealAuction portal for sheriff sale listings.
+    """
+    logging.info(f"[{county_name}] Starting RealAuction sheriff sale scrape for: {start_url}")
+    page = await browser.new_page()
+    try:
+        await page.goto(start_url, wait_until="domcontentloaded", timeout=60000)
+
+        # The properties are listed in blocks. The selector might need to be adjusted if the site changes.
+        property_blocks = await page.query_selector_all("div.ASTAT_DIV")
+        logging.info(f"[{county_name}] Found {len(property_blocks)} property blocks on RealAuction.")
+
+        from datetime import datetime
+
+        for block in property_blocks:
+            # Extract data from the block. This relies on the structure of the HTML.
+            case_number_el = await block.query_selector('span[id^="caseH_"]')
+            case_number = (await case_number_el.inner_text()).replace("CASE #:", "").strip() if case_number_el else ""
+
+            sale_date_el = await block.query_selector('span[id^="saleDateH_"]')
+            sale_date_str = (await sale_date_el.inner_text()).replace("Sale Date:", "").strip() if sale_date_el else ""
+            sale_date = datetime.strptime(sale_date_str, "%m/%d/%Y").date() if sale_date_str else None
+
+            address_el = await block.query_selector('span[id^="Address_"]')
+            address = await address_el.inner_text() if address_el else ""
+
+            plaintiff_el = await block.query_selector('span[id^="Plaintiff_"]')
+            plaintiff = (await plaintiff_el.inner_text()).replace("PLAINTIFF:", "").strip() if plaintiff_el else ""
+
+            defendant_el = await block.query_selector('span[id^="Defendant_"]')
+            defendant = (await defendant_el.inner_text()).replace("DEFENDANT:", "").strip() if defendant_el else ""
+
+            appraisal_el = await block.query_selector('span[id^="appraisedH_"]')
+            appraisal_str = (await appraisal_el.inner_text()).replace("APPRAISED VALUE:", "").replace("$", "").replace(",", "").strip() if appraisal_el else "0"
+            appraisal = float(appraisal_str) if appraisal_str else 0.0
+
+            status_el = await block.query_selector('span[id^="AuctionStatus_"]')
+            status = await status_el.inner_text() if status_el else ""
+
+            sale = {
+                "case_number": case_number,
+                "sale_date": sale_date,
+                "address": address,
+                "plaintiff": plaintiff,
+                "defendant": defendant,
+                "appraisal": appraisal,
+                "status": status,
+            }
+            await _save_sheriff_sale(pool, county_name, sale, page.url)
+
+    except Exception as e:
+        logging.error(f"[{county_name}] An error occurred during RealAuction scrape: {e}")
+    finally:
+        await page.close()
+
+async def _save_auditor_property(pool: Pool, county_name: str, prop: dict, url: str):
+    """Saves a single auditor property record to the database."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO auditor_properties (county_name, parcel_id, property_address, owner_name, assessed_value_total, tax_district, school_district, land_use_code, scraped_from_url)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (county_name, parcel_id) DO UPDATE SET
+                property_address = EXCLUDED.property_address,
+                owner_name = EXCLUDED.owner_name,
+                assessed_value_total = EXCLUDED.assessed_value_total,
+                scraped_timestamp = NOW()
+            """,
+            county_name,
+            prop.get("parcel_id"),
+            prop.get("address"),
+            prop.get("owner"),
+            prop.get("value"),
+            prop.get("tax_district"),
+            prop.get("school_district"),
+            prop.get("land_use"),
+            url,
+        )
+
+async def scrape_arc_auditor(browser: Browser, start_url: str, county_name: str, pool: Pool):
+    """
+    Scrapes the Appraisal Research Corp (ARC) portal for auditor property data.
+    """
+    logging.info(f"[{county_name}] Starting ARC auditor scrape for: {start_url}")
+    page = await browser.new_page()
+    try:
+        await page.goto(start_url, wait_until="domcontentloaded", timeout=60000)
+
+        # 1. Agree to disclaimer
+        await page.locator('a:has-text("I Agree")').click()
+        await page.wait_for_load_state("domcontentloaded")
+
+        # 2. Perform a search. We will search for a common street name to get a list of results.
+        # This is a good way to discover many properties without needing specific parcel IDs.
+        await page.fill('input[name="search.query"]', "MAIN ST")
+        await page.locator('button:has-text("Search")').click()
+
+        # 3. Wait for and parse results
+        await page.wait_for_selector("table#results-table", timeout=60000)
+        rows = await page.query_selector_all("table#results-table tbody tr")
+        logging.info(f"[{county_name}] Found {len(rows)} properties in ARC search.")
+
+        # Store links to detail pages to avoid navigating while iterating
+        detail_links = []
+        for row in rows:
+            link_el = await row.query_selector('a')
+            if link_el:
+                detail_links.append(await link_el.get_attribute('href'))
+
+        for link in detail_links:
+            detail_url = urljoin(page.url, link)
+            try:
+                await page.goto(detail_url, wait_until="domcontentloaded")
+
+                # Extract data from the detail page. Selectors are based on ARC's typical layout.
+                parcel_id_el = await page.query_selector('td:has-text("Parcel ID") + td')
+                parcel_id = await parcel_id_el.inner_text() if parcel_id_el else ""
+
+                owner_el = await page.query_selector('td:has-text("Owner") + td')
+                owner = await owner_el.inner_text() if owner_el else ""
+
+                address_el = await page.query_selector('td:has-text("Address") + td')
+                address = await address_el.inner_text() if address_el else ""
+
+                value_el = await page.query_selector('td:has-text("Total Assessed") + td')
+                value_str = (await value_el.inner_text()).replace("$", "").replace(",", "") if value_el else "0"
+                value = float(value_str) if value_str else 0.0
+
+                tax_dist_el = await page.query_selector('td:has-text("Tax District") + td')
+                tax_district = await tax_dist_el.inner_text() if tax_dist_el else ""
+
+                school_dist_el = await page.query_selector('td:has-text("School District") + td')
+                school_district = await school_dist_el.inner_text() if school_dist_el else ""
+
+                land_use_el = await page.query_selector('td:has-text("Land Use") + td')
+                land_use = await land_use_el.inner_text() if land_use_el else ""
+
+                prop = {
+                    "parcel_id": parcel_id,
+                    "owner": owner,
+                    "address": address,
+                    "value": value,
+                    "tax_district": tax_district,
+                    "school_district": school_district,
+                    "land_use": land_use,
+                }
+                await _save_auditor_property(pool, county_name, prop, page.url)
+
+            except Exception as e:
+                logging.error(f"[{county_name}] Failed to process ARC detail page {detail_url}: {e}")
+
+    except Exception as e:
+        logging.error(f"[{county_name}] An error occurred during ARC scrape: {e}")
+    finally:
+        await page.close()
+
+async def _save_court_case(pool: Pool, county_name: str, case: dict, url: str):
+    """Saves a single court case record to the database."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO court_cases (county_name, case_number, case_type, filing_date, plaintiffs, defendants, status, scraped_from_url)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (county_name, case_number) DO UPDATE SET
+                status = EXCLUDED.status,
+                scraped_timestamp = NOW()
+            """,
+            county_name,
+            case.get("case_number"),
+            case.get("case_type"),
+            case.get("filing_date"),
+            case.get("plaintiffs"),
+            case.get("defendants"),
+            case.get("status"),
+            url,
+        )
+
+async def scrape_courtview_clerk(browser: Browser, start_url: str, county_name: str, pool: Pool):
+    """
+    Scrapes the CourtView portal for Clerk of Courts case data.
+    """
+    logging.info(f"[{county_name}] Starting CourtView clerk scrape for: {start_url}")
+    page = await browser.new_page()
+    try:
+        await page.goto(start_url, wait_until="domcontentloaded", timeout=60000)
+
+        # 1. Navigate to the case search page
+        # The site uses frames, so we need to target the correct frame to find the search link.
+        # However, a direct link is often easier if available. Let's assume a direct navigation is possible.
+        # Based on inspection, the search is often under a 'Case' or 'Search' menu.
+        # Let's try to find a link with text 'Case Number' to get to the search page.
+        # If this fails, a more complex frame-based navigation would be needed.
+
+        # Click on "Case Information" in the left nav, which loads the search options.
+        await page.locator('a:has-text("Case Information")').click()
+
+        # 2. Perform a search by date
+        from datetime import datetime, timedelta
+        start_date = (datetime.now() - timedelta(days=30)).strftime("%m/%d/%Y")
+        end_date = datetime.now().strftime("%m/%d/%Y")
+
+        await page.fill('input[name="filingDateFrom"]', start_date)
+        await page.fill('input[name="filingDateTo"]', end_date)
+
+        # Click the search button
+        await page.locator('input[type="submit"][value="Search"]').click()
+
+        # 3. Wait for and parse results
+        await page.wait_for_selector("table.result", timeout=60000)
+        rows = await page.query_selector_all("table.result tr.result-row")
+        logging.info(f"[{county_name}] Found {len(rows)} cases in CourtView search.")
+
+        for row in rows:
+            cells = await row.query_selector_all('td')
+            if len(cells) < 5: continue
+
+            case_number_el = await cells[0].query_selector('a')
+            case_number = await case_number_el.inner_text() if case_number_el else ""
+
+            filing_date_str = await cells[2].inner_text()
+            filing_date = datetime.strptime(filing_date_str.strip(), "%m/%d/%Y").date() if filing_date_str else None
+
+            # Extracting party names can be complex due to HTML structure.
+            # We'll take the full text and process it simply.
+            parties_text = await cells[1].inner_text()
+            plaintiffs = defendants = parties_text # Simple assignment for now
+
+            case = {
+                "case_number": case_number.strip(),
+                "case_type": (await cells[3].inner_text()).strip(),
+                "filing_date": filing_date,
+                "plaintiffs": plaintiffs,
+                "defendants": defendants,
+                "status": (await cells[4].inner_text()).strip(),
+            }
+            await _save_court_case(pool, county_name, case, page.url)
+
+    except Exception as e:
+        logging.error(f"[{county_name}] An error occurred during CourtView scrape: {e}")
+    finally:
+        await page.close()

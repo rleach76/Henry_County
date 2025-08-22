@@ -12,13 +12,21 @@ from ingestion import database
 from ingestion import scrapers
 from ingestion import config
 
-# Scraper mapping remains the same
+# Scraper mapping for different categories of URLs.
 SCRAPER_MAPPING = {
+    # Generic web pages
     "government": scrapers.crawl_generic_website,
     "news_and_obituaries": scrapers.crawl_generic_website,
     "funeral_homes": scrapers.crawl_generic_website,
     "genealogy": scrapers.crawl_generic_website,
     "business_and_economic": scrapers.crawl_generic_website,
+    "treasurer_pdfs": scrapers.crawl_generic_website, # PDFs are handled by the generic crawler's download utility
+
+    # Custom portal scrapers
+    "recorder_portal": scrapers.scrape_kofile_recorder,
+    "sheriff_sales_portal": scrapers.scrape_realauction_sheriff_sales,
+    "auditor_portal": scrapers.scrape_arc_auditor,
+    "clerk_of_courts_portal": scrapers.scrape_courtview_clerk,
 }
 
 async def scrape_county(county_name: str):

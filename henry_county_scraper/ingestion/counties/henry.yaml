@@ -36,6 +36,17 @@ seed_targets:
       - "https://www.rodenbergergray.com/"
     genealogy:
       - "https://henrycountyfamilies.org/index.php/henry-county-vital-records/"
+    treasurer_pdfs:
+      - "https://www.henrycountyohio.gov/DocumentCenter/View/10738/2024-Delinquent-List"
+      - "https://www.henrycountyohio.gov/DocumentCenter/View/10093/2023-Delinquent-List"
+    recorder_portal:
+      - "https://countyfusion7.kofiletech.us/countyweb/loginDisplay.action?countyname=HenryOH"
+    sheriff_sales_portal:
+      - "https://henry.sheriffsaleauction.ohio.gov/"
+    auditor_portal:
+      - "https://henryparcelsearch.appraisalresearchcorp.com/"
+    clerk_of_courts_portal:
+      - "https://eservices.henrycountyohio.gov/eservices/home.page.2"
 
 # RSS feeds specific to this county
 rss_feeds:

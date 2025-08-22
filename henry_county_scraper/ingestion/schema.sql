@@ -98,7 +98,76 @@ CREATE TABLE IF NOT EXISTS archived_files (
     processed_timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Stores data from the Recorder's Office (Kofile)
+CREATE TABLE IF NOT EXISTS recorder_records (
+    id SERIAL PRIMARY KEY,
+    county_name VARCHAR(255) NOT NULL,
+    document_number VARCHAR(255) NOT NULL,
+    document_type VARCHAR(255),
+    recording_date DATE,
+    grantor TEXT, -- The seller or giver
+    grantee TEXT, -- The buyer or receiver
+    description TEXT,
+    scraped_from_url TEXT,
+    scraped_timestamp TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(county_name, document_number)
+);
+
 -- Indexes for faster queries
 CREATE INDEX IF NOT EXISTS idx_scraping_targets_county_status ON scraping_targets(county_name, status);
 CREATE INDEX IF NOT EXISTS idx_scraped_pages_county_url ON scraped_pages(county_name, url);
 CREATE INDEX IF NOT EXISTS idx_rss_articles_county_link ON rss_articles(county_name, link);
+CREATE INDEX IF NOT EXISTS idx_recorder_records_doc_number ON recorder_records(county_name, document_number);
+
+-- Stores data from Sheriff Sales (RealAuction)
+CREATE TABLE IF NOT EXISTS sheriff_sales (
+    id SERIAL PRIMARY KEY,
+    county_name VARCHAR(255) NOT NULL,
+    case_number VARCHAR(255) NOT NULL,
+    sale_date TIMESTAMPTZ,
+    property_address TEXT,
+    plaintiff TEXT,
+    defendant TEXT,
+    appraisal_value NUMERIC(12, 2),
+    status VARCHAR(100),
+    scraped_from_url TEXT,
+    scraped_timestamp TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(county_name, case_number, sale_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sheriff_sales_case_number ON sheriff_sales(county_name, case_number);
+
+-- Stores property data from the Auditor's Office (ARC)
+CREATE TABLE IF NOT EXISTS auditor_properties (
+    id SERIAL PRIMARY KEY,
+    county_name VARCHAR(255) NOT NULL,
+    parcel_id VARCHAR(255) NOT NULL,
+    property_address TEXT,
+    owner_name TEXT,
+    assessed_value_total NUMERIC(12, 2),
+    tax_district VARCHAR(255),
+    school_district VARCHAR(255),
+    land_use_code VARCHAR(100),
+    scraped_from_url TEXT,
+    scraped_timestamp TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(county_name, parcel_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_auditor_properties_parcel_id ON auditor_properties(county_name, parcel_id);
+
+-- Stores data from the Clerk of Courts (CourtView)
+CREATE TABLE IF NOT EXISTS court_cases (
+    id SERIAL PRIMARY KEY,
+    county_name VARCHAR(255) NOT NULL,
+    case_number VARCHAR(255) NOT NULL,
+    case_type VARCHAR(100),
+    filing_date DATE,
+    plaintiffs TEXT,
+    defendants TEXT,
+    status VARCHAR(100),
+    scraped_from_url TEXT,
+    scraped_timestamp TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(county_name, case_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_court_cases_case_number ON court_cases(county_name, case_number);
