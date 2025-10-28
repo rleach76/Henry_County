@@ -1,0 +1,62 @@
+# County-specific configuration for Henry County, Ohio
+county_name: "Henry"
+
+# URLs to be seeded into the database for this county.
+# The 'always' frequency means they will be re-scraped on every run.
+seed_targets:
+  scrape_frequency: 'always'
+  urls:
+    government:
+      - "https://www.henrycountyohio.gov/"
+      - "https://henrycountyohio.gov/BusinessDirectoryii.aspx"
+      - "https://henrycountyohio.gov/35/Business"
+      - "https://www.napoleonohio.com/"
+      - "https://www.henrycountyohio.gov/167/Airport"
+      - "https://villageofdeshler.com/"
+      - "https://benefits.ohio.gov/wps/portal/gov/obssp/help-center/contact-us/henry-county"
+      - "https://henrycohd.org/"
+    business_and_economic:
+      - "https://www.henrycountychamber.org/member-directory/"
+      - "https://www.henryhas.com/agriculture-businesses/"
+      - "http://www.henrycountyhospital.org"
+      - "https://www.ohiobiz.com/"
+      - "https://www.toledoblade.com/business"
+    news_and_obituaries:
+      - "https://www.loc.gov/item/sn86079021"
+      - "https://ldsgenealogy.com/OH/Henry-County-Newspapers-and-Obituaries.htm"
+      - "https://www.obitsarchive.com/obituaries/usa/ohio/napoleon/northwest-signal"
+      - "https://www.legacy.com/us/obituaries/local/ohio/henry-county"
+      - "https://www.legacy.com/us/obituaries/local/ohio/napoleon"
+      - "https://www.wtol.com/"
+      - "https://www.13abc.com/"
+      - "https://www.toledoblade.com/"
+    funeral_homes:
+      - "https://www.zachrichfuneralhome.com/obituaries"
+      - "https://www.hoeningfuneralhome.com/obituaries/obituary-listings"
+      - "https://www.rodenbergergray.com/"
+    genealogy:
+      - "https://henrycountyfamilies.org/index.php/henry-county-vital-records/"
+    treasurer_pdfs:
+      - "https://www.henrycountyohio.gov/DocumentCenter/View/10738/2024-Delinquent-List"
+      - "https://www.henrycountyohio.gov/DocumentCenter/View/10093/2023-Delinquent-List"
+    recorder_portal:
+      - "https://countyfusion7.kofiletech.us/countyweb/loginDisplay.action?countyname=HenryOH"
+    sheriff_sales_portal:
+      - "https://henry.sheriffsaleauction.ohio.gov/"
+    auditor_portal:
+      - "https://henryparcelsearch.appraisalresearchcorp.com/"
+    clerk_of_courts_portal:
+      - "https://eservices.henrycountyohio.gov/eservices/home.page.2"
+
+# RSS feeds specific to this county
+rss_feeds:
+  county_pages: "https://henrycountyohio.gov/RSSFeed.aspx?ModID=76&CID=All-0"
+  county_agendas: "https://henrycountyohio.gov/RSSFeed.aspx?ModID=65&CID=All-0"
+  county_alerts: "https://henrycountyohio.gov/RSSFeed.aspx?ModID=63&CID=All-0"
+  county_calendar: "https://henrycountyohio.gov/RSSFeed.aspx?ModID=58&CID=All-calendar.xml"
+  county_jobs: "https://henrycountyohio.gov/RSSFeed.aspx?CommunityJobs=False&ModID=66&CID=All-0"
+  county_news: "https://henrycountyohio.gov/RSSFeed.aspx?ModID=1&CID=All-newsflash.xml"
+  county_photos: "https://henrycountyohio.gov/RSSFeed.aspx?ModID=53&CID=All-0"
+  supreme_court_happening: "https://www.supremecourt.ohio.gov/RSS/CNO/happening.aspx"
+  wtol_news: "https://feeds.feedblitz.com/wtol/news"
+  toledo_blade_news: "https://www.toledoblade.com/rss/"

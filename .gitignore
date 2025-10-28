@@ -1,0 +1,30 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+VENV/
+
+# Database files
+*.db
+*.sqlite3
+*.db-journal
+
+# Log files
+logs/
+*.log
+
+# Data and download directories
+storage/
+downloads/
+
+# IDE and editor directories
+.idea/
+.vscode/
